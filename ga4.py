@@ -28,14 +28,14 @@ cursor.execute(query, params)
 # Получение результатов запроса
 results = cursor.fetchall()
 
-def query_google_analytics(order_number):
+def query_google_analytics(order_number,start_date,end_date):
     # Создание клиента для работы с API Google Analytics
     client = BetaAnalyticsDataClient()
 
     # Определение параметров запроса
     dimensions = [Dimension(name='ga:medium'), Dimension(name='ga:source')]
     metric = {'name': 'ga:sessions'}
-    date_range = {'start_date': '2022-01-01', 'end_date': '2022-01-31'}
+    date_range = {'start_date': start_date, 'end_date': end_date}
     order_number_filter = f'ga:eventLabel=={order_number}'
 
     # Выполнение запроса
@@ -53,12 +53,36 @@ def query_google_analytics(order_number):
         source = row.dimension_values[1].value
         sessions = row.metric_values[0].value
 
+        if medium or source != 0:
+            # Выполнение запроса с использованием параметров
+            query = "INSERT INTO analytics_data (order_id, medium, source) VALUES (%s, %s, %s)"
+            values = (f'{medium}/{source}/shn{order_number}', medium, source)
+            cursor.execute(query, values)
+
+            # Подтверждение изменений в базе данных
+            conn.commit()
+        else:
+            query = "SELECT orders.order_id, channels.channel FROM orders JOIN nodes ON orders.order_id=nodes.order_id JOIN channels ON nodes.channel_id=channels.channel_id"
+            result = cursor.execute(query)
+            if result['channel'] != 0:
+                # Выполнение запроса с использованием параметров
+                query = "INSERT INTO analytics_data (order_id, medium, source) VALUES (%s, %s, %s)"
+                values = (f'{medium}/{source}/shn{order_number}', medium, source)
+                cursor.execute(query, values)
+                # Подтверждение изменений в базе данных
+                conn.commit()
+            else:
+                # Выполнение запроса с использованием параметров
+                query = "INSERT INTO analytics_data (order_id, medium, source) VALUES (%s, %s, %s)"
+                values = (f'{medium}/{source}/shn{order_number}', medium, source)
+                cursor.execute(query, values)
+                # Подтверждение изменений в базе данных
+                conn.commit()
 
 #  для каждого order_number производится запрос в ga4 для получения параметров medium/source 
 
 for order_number in results:
-    query_google_analytics(order_number)
-
+    query_google_analytics(order_number,today,two_days_ago)
 
 # Закрытие курсора и соединения с базой данных
 cursor.close()
